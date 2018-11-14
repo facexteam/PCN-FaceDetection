@@ -67,6 +67,7 @@ cv::Mat CropFace(cv::Mat img, Window face, int cropSize)
     int y1 = face.y;
     int x2 = face.width + face.x - 1;
     int y2 = face.width + face.y - 1;
+    cropSize=face.width;
     int centerX = (x1 + x2) / 2;
     int centerY = (y1 + y2) / 2;
     cv::Point2f srcTriangle[3];

@@ -12,7 +12,7 @@ std::string parse_name(std::string& filename){
     int size=filename.size();
     std::string target="/";
     size_t pos=filename.rfind(target);
-    std::string sub_str=filename.substr(pos,size-1);
+    std::string sub_str=filename.substr(pos+1,size-1);
     std::cout<<"filename="<<sub_str<<"\n";
     return sub_str;
 }
@@ -20,15 +20,17 @@ std::string parse_name(std::string& filename){
 int main(int argc, const char  *argv[])
 {
     PCN detector("model/PCN.caffemodel","model/PCN-1.prototxt", "model/PCN-2.prototxt", "model/PCN-3.prototxt");
-    detector.SetMinFaceSize(24)
+    detector.SetMinFaceSize(24);
     detector.SetScoreThresh(0.37, 0.43, 0.95);
     detector.SetImagePyramidScaleFactor(1.414);
     detector.SetVideoSmooth(false);
     Img_Rect img_rect;
     std::string filename("");
+    std::cout<<"argc="<<argc<<"\n";
     if (argc>1) {
       for (int i=1;  i<argc; i+=2){
       string t_str(argv[i]);
+      std::cout<<t_str<<"\n";
       if (t_str=="--image"){
         cv::Mat img=cv::imread(argv[i+1]);
         img_rect.img=img;
@@ -42,8 +44,10 @@ int main(int argc, const char  *argv[])
         rect.width=atoi(argv[i+3]);
         rect.height=atoi(argv[i+4]);
         img_rect.rects.push_back(rect);
+//	std::cout<<"x="<< rect.x<<",y="<< rect.y<<",width="<< rect.width<<",height="<< rect.height<<"\n";
       }
     }
+  }
     cv::Mat& img =img_rect.img;
     std::vector<cv::Rect>& rects=img_rect.rects;
 	std::cout<<"img.rows="<<img.rows<<"\n";
@@ -52,15 +56,15 @@ int main(int argc, const char  *argv[])
     tm.start();
     std::vector<Window> faces = detector.DetectFace(img,rects);
     std::cout << "Time Cost: "<<tm.getTimeMilli() << " ms" << std::endl;
-
+    cv::Mat face_region=img(rects[0]);
     cv::Mat faceImg;
     for (int j = 0; j < faces.size(); j++){
-        cv::Mat tmpFaceImg = CropFace(img, faces[j], 200);
+        cv::Mat tmpFaceImg = CropFace(face_region, faces[j], 200);
         faceImg = MergeImgs(faceImg, tmpFaceImg);
-        std::string file_name="result/"+filename+"_faces.jpg";
+        std::string file_name="result_test/"+filename+"_faces.jpg";
         cv::imwrite(file_name,tmpFaceImg);
     }
-    std::string file_name="result/"+filename+".jpg";
+    std::string file_name="result_test/"+filename+".jpg";
 	std::cout<<file_name<<"\n\n**********************************\n\n";
     cv::imwrite(file_name,img);
 
