@@ -1,14 +1,71 @@
 #include "PCN.h"
+#include<iostream>
+using namespace std;
 
-int main()
+typedef struct Img_Rect{
+    cv::Mat img;
+    std::vector<cv::Rect> rects;
+
+}Img_Rect;
+
+std::string parse_name(std::string& filename){
+    int size=filename.size();
+    std::string target="/";
+    size_t pos=filename.rfind(target);
+    std::string sub_str=filename.substr(pos,size-1);
+    std::cout<<"filename="<<sub_str<<"\n";
+    return sub_str;
+}
+
+int main(int argc, const char  *argv[])
 {
-    PCN detector("model/PCN.caffemodel",
-                 "model/PCN-1.prototxt", "model/PCN-2.prototxt", "model/PCN-3.prototxt");
+    PCN detector("model/PCN.caffemodel","model/PCN-1.prototxt", "model/PCN-2.prototxt", "model/PCN-3.prototxt");
     detector.SetMinFaceSize(24)
     detector.SetScoreThresh(0.37, 0.43, 0.95);
     detector.SetImagePyramidScaleFactor(1.414);
     detector.SetVideoSmooth(false);
+    Img_Rect img_rect;
+    std::string filename("");
+    if (argc>1) {
+      for (int i=1;  i<argc; i+=2){
+      string t_str(argv[i]);
+      if (t_str=="--image"){
+        cv::Mat img=cv::imread(argv[i+1]);
+        img_rect.img=img;
+        string temp=argv[i+1];
+        filename=parse_name(temp);
+      }
+      if (t_str=="--rect"){
+        cv::Rect rect;
+        rect.x=atoi(argv[i+1]);
+        rect.y=atoi(argv[i+2]);
+        rect.width=atoi(argv[i+3]);
+        rect.height=atoi(argv[i+4]);
+        img_rect.rects.push_back(rect);
+      }
+    }
+    cv::Mat& img =img_rect.img;
+    std::vector<cv::Rect>& rects=img_rect.rects;
+	std::cout<<"img.rows="<<img.rows<<"\n";
+    cv::TickMeter tm;
+    tm.reset();
+    tm.start();
+    std::vector<Window> faces = detector.DetectFace(img,rects);
+    std::cout << "Time Cost: "<<tm.getTimeMilli() << " ms" << std::endl;
 
+    cv::Mat faceImg;
+    for (int j = 0; j < faces.size(); j++){
+        cv::Mat tmpFaceImg = CropFace(img, faces[j], 200);
+        faceImg = MergeImgs(faceImg, tmpFaceImg);
+        std::string file_name="result/"+filename+"_faces.jpg";
+        cv::imwrite(file_name,tmpFaceImg);
+    }
+    std::string file_name="result/"+filename+".jpg";
+	std::cout<<file_name<<"\n\n**********************************\n\n";
+    cv::imwrite(file_name,img);
+
+
+    /*
     for (int i = 1; i <100; i++)
     {
         cv::Mat img =
@@ -43,11 +100,11 @@ int main()
         }
 	std::string file_name="result/"+std::to_string(i)+".jpg";
 	std::cout<<file_name<<"\n\n**********************************\n\n";
-        cv::imwrite(file_name,img);
+    cv::imwrite(file_name,img);
  //       cv::imshow("PCN", img);
  //       cv::waitKey();
     }
-
+*/
    // cv::destroyAllWindows();
 
     return 0;

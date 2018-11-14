@@ -85,6 +85,83 @@ void PCN::SetImagePyramidScaleFactor(float factor)
     p->scale_ = factor;
 }
 
+void get_face_imgs(cv::Mat& img,std::vector<cv::Rect>& rects,
+                    std::vector<cv::Mat>& faces){
+    const int size=rects.size();
+    for(int i=0;i<size;++i){
+        cv::Rect rect=rects[i];
+        cv::Mat img=img(rect);
+        faces.push_back(img);
+    }
+}
+
+std::vector<Window> PCN:: DetectFace(cv::Mat& origin_img,std::vector<cv::Rect>& rects){
+    std::vector<cv::Mat> faces;
+    get_face_imgs(origin_img,rects,faces);
+    const int size=faces.size();
+    for(int i=0;i<size;++i){
+        cv::Mat& img=faces[i];
+        Impl *p = (Impl *)impl_;
+        cv::Mat imgPad = p->PadImg(img);
+        cv::Mat img180, img90, imgNeg90;
+        cv::flip(imgPad, img180, 0);
+        cv::transpose(imgPad, img90);
+        cv::flip(img90, imgNeg90, 0);
+        // std::vector<Window2> winList = p->Stage1(img, imgPad, p->net_[0], p->classThreshold_[0]);
+        // winList = p->NMS(winList, true, p->nmsThreshold_[0]);
+        std::cout<<"test...\n";
+        std::vector<Window2> winList =p->Stage1_WinList(imgPad, p->net_[0],p->classThreshold_[0],24);
+        winList = p->NMS(winList, true, p->nmsThreshold_[0]);
+        winList = p->Stage2(imgPad, img180, p->net_[1], p->classThreshold_[1], 24, winList);
+        winList = p->NMS(winList, true, p->nmsThreshold_[1]);
+
+        winList = p->Stage3(imgPad, img180, img90, imgNeg90, p->net_[2], p->classThreshold_[2], 48, winList);
+        winList = p->NMS(winList, false, p->nmsThreshold_[2]);
+        winList = p->DeleteFP(winList);
+
+        static std::vector<Window2> preList;
+        if (p->stable_)
+        {
+            for (int i = 0; i < winList.size(); i++)
+            {
+                for (int j = 0; j < preList.size(); j++)
+                {
+                    if (p->IoU(winList[i], preList[j]) > 0.9)
+                        winList[i] = preList[j];
+                    else if (p->IoU(winList[i], preList[j]) > 0.6)
+                    {
+                        winList[i].x = (winList[i].x + preList[j].x) / 2;
+                        winList[i].y = (winList[i].y + preList[j].y) / 2;
+                        winList[i].w = (winList[i].w + preList[j].w) / 2;
+                        winList[i].h = (winList[i].h + preList[j].h) / 2;
+                        winList[i].angle = p->SmoothAngle(winList[i].angle, preList[j].angle);
+                    }
+                }
+            }
+            preList = winList;
+        }
+    /*
+        // get the most length one 
+        int max_width=0,index=-1;
+        for (int i = 0; i < winList.size(); i++){
+            if(winList[i].w>max_width){
+                max_width=winList[i].w;
+                index=i;
+            }
+        }
+        
+        std::vector<Window2> _winList;
+        _winList.push_back(winList[index]);
+        const int size=winList.size();
+        for(int i=0;i<size;++i){
+            Window2 win=_winList[i];
+            std::cout<<" win.angle="<< win.angle<<"\n";
+        }
+    */
+    return p->TransWindow(img, imgPad, winList);
+    } // for outer 
+ }
+
 std::vector<Window> PCN::DetectFace(cv::Mat img)
 {
     Impl *p = (Impl *)impl_;
@@ -93,10 +170,10 @@ std::vector<Window> PCN::DetectFace(cv::Mat img)
     cv::flip(imgPad, img180, 0);
     cv::transpose(imgPad, img90);
     cv::flip(img90, imgNeg90, 0);
-    std::vector<Window2> winList = p->Stage1(img, imgPad, p->net_[0], p->classThreshold_[0]);
-    winList = p->NMS(winList, true, p->nmsThreshold_[0]);
- //   std::cout<<"test...\n";
-//   std::vector<Window2> winList =p->Stage1_WinList(imgPad, p->net_[0],p->classThreshold_[0],24);
+    // std::vector<Window2> winList = p->Stage1(img, imgPad, p->net_[0], p->classThreshold_[0]);
+    // winList = p->NMS(winList, true, p->nmsThreshold_[0]);
+    std::cout<<"test...\n";
+    std::vector<Window2> winList =p->Stage1_WinList(imgPad, p->net_[0],p->classThreshold_[0],24);
     winList = p->NMS(winList, true, p->nmsThreshold_[0]);
     winList = p->Stage2(imgPad, img180, p->net_[1], p->classThreshold_[1], 24, winList);
     winList = p->NMS(winList, true, p->nmsThreshold_[1]);
@@ -379,7 +456,7 @@ std::vector<Window2> Impl::Stage1_WinList0(cv::Mat& img, cv::Mat& imgPad,
     int col = (imgPad.cols - img.cols) / 2;
     std::vector<Window2> winList;
     const int netSize = 24;
-    float curScale = 1; //minFace_ / float(netSize);
+    float curScale = 1.0; //minFace_ / float(netSize);
     cv::Mat imgResized = ResizeImg(img, curScale);
     // while (std::min(imgResized.rows, imgResized.cols) >= netSize)
     // {
@@ -465,26 +542,26 @@ std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe:
             int rw = int(sn * cropW); //std::min(img.cols,img.rows);  // int(sn * cropW);
             int rx = int(cropX  - 0.5 * sn * cropW + cropW * sn * xn + 0.5 * cropW);
             int ry = int(cropY  - 0.5 * sn * cropW + cropW * sn * yn + 0.5 * cropW);//0
-	    if(rx<0)
-		rx=0;
-	    if(ry<0)
-                ry=0;
-	    if(rx+rw >img.cols)
-		rw=img.cols-rx-1;
-	    if(ry+rw >img.rows)
-                rw=img.rows-ry-1;
+            if(rx<0)
+            rx=0;
+            if(ry<0)
+                    ry=0;
+            if(rx+rw >img.cols)
+            rw=img.cols-rx-1;
+            if(ry+rw >img.rows)
+                    rw=img.rows-ry-1;
 
 	    std::cout<<"rw="<<rw<<",rx="<<rx<<",ry="<<ry<<"\n";
  //           if (Legal(rx, ry, img) && Legal(rx + rw - 1, ry + rw - 1, img))
             {
                 if (rotateProb->data_at(i,1, 0, 0) > 0.5){
-		    std::cout<<"stage1:ratate 0 \n";
+                    std::cout<<"stage1:ratate 0 \n";
                     ret.push_back(Window2(rx, ry, rw, rw, 0, 1.0, prob->data_at(0,1,0,0)));
 		   }
 
                 else{
                     ret.push_back(Window2(rx, ry, rw, rw, 180, 1.0, prob->data_at(0, 1, 0, 0)));
-		     std::cout<<"stage1:ratate 180 \n";  
+                    std::cout<<"stage1:ratate 180 \n";  
 		}
             }
 	}

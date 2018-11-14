@@ -104,6 +104,7 @@ public:
     void SetImagePyramidScaleFactor(float factor);
     void SetVideoSmooth(bool smooth);
     std::vector<Window> DetectFace(cv::Mat img);
+    std::vector<Window> DetectFace(cv::Mat& img,std::vector<cv::Rect>& rects);
 
 private:
     void* impl_;
