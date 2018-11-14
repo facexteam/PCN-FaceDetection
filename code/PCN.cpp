@@ -29,6 +29,8 @@ public:
     std::vector<Window> TransWindow(cv::Mat img, cv::Mat imgPad, std::vector<Window2> &winList);
     std::vector<Window2> Stage1(cv::Mat img, cv::Mat imgPad, caffe::shared_ptr<caffe::Net<float> > &net, float thres);
     std::vector<Window2> Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe::Net<float> > &net,float thres, const int dim);
+    std::vector<Window2> Stage1_WinList0(cv::Mat& img, cv::Mat& imgPad, 
+                                           caffe::shared_ptr<caffe::Net<float> > &net, float thres);
     std::vector<Window2> Stage2(cv::Mat img, cv::Mat img180,
                                 caffe::shared_ptr<caffe::Net<float> > &net, float thres, int dim, std::vector<Window2> &winList);
     std::vector<Window2> Stage3(cv::Mat img, cv::Mat img180, cv::Mat img90, cv::Mat imgNeg90,
@@ -370,6 +372,62 @@ std::vector<Window2> Impl::Stage1(cv::Mat img, cv::Mat imgPad, caffe::shared_ptr
     return winList;
 }
 
+std::vector<Window2> Impl::Stage1_WinList0(cv::Mat& img, cv::Mat& imgPad, 
+                                           caffe::shared_ptr<caffe::Net<float> > &net, float thres)
+{
+    int row = (imgPad.rows - img.rows) / 2;
+    int col = (imgPad.cols - img.cols) / 2;
+    std::vector<Window2> winList;
+    const int netSize = 24;
+    float curScale = 1; //minFace_ / float(netSize);
+    cv::Mat imgResized = ResizeImg(img, curScale);
+    // while (std::min(imgResized.rows, imgResized.cols) >= netSize)
+    // {
+    SetInput(PreProcessImg(imgResized), net);
+    net->Forward();
+    caffe::Blob<float>* reg = net->output_blobs()[0];
+    caffe::Blob<float>* prob = net->output_blobs()[1];
+    caffe::Blob<float>* rotateProb = net->output_blobs()[2];
+    float w = netSize * curScale;
+    thres=-1.0;
+    for (int i = 0; i < prob->height(); i++)
+    {
+        for (int j = 0; j < prob->width(); j++)
+        {
+            if (prob->data_at(0, 1, i, j) > thres)
+            {
+                float sn = reg->data_at(0, 0, i, j);
+                float xn = reg->data_at(0, 1, i, j);
+                float yn = reg->data_at(0, 2, i, j);
+                int rx = int(j * curScale * stride_ - 0.5 * sn * w + sn * xn * w + 0.5 * w) + col;
+                int ry = int(i * curScale * stride_ - 0.5 * sn * w + sn * yn * w + 0.5 * w) + row;
+                int rw = int(w * sn);
+                if(rx<0)
+                    rx=0;
+                if(ry<0)
+                    ry=0;
+                if(rx+rw >imgPad.cols)
+                    rw=imgPad.cols-rx-1;
+                if(ry+rw >imgPad.rows)
+                    rw=imgPad.rows-ry-1;
+
+                std::cout<<"rw="<<rw<<",rx="<<rx<<",ry="<<ry<<"\n";
+                if (Legal(rx, ry, imgPad) && Legal(rx + rw - 1, ry + rw - 1, imgPad))
+                {
+                    if (rotateProb->data_at(0, 1, i, j) > 0.5)
+                        winList.push_back(Window2(rx, ry, rw, rw, 0, curScale, prob->data_at(0, 1, i, j)));
+                    else
+                        winList.push_back(Window2(rx, ry, rw, rw, 180, curScale, prob->data_at(0, 1, i, j)));
+                }
+            }
+        }
+    }
+    // imgResized = ResizeImg(imgResized, scale_);
+    // curScale = float(img.rows) / imgResized.rows;
+    // }
+    return winList;
+}
+
 std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe::Net<float> > &net,float thres, const int dim)
 {
     // if (winList.size() == 0)
@@ -381,8 +439,7 @@ std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe:
     std::cout<<"--------stage1:winList.size()="<<winList.size()<<"\n";
     std::vector<cv::Mat> dataList;
     const int height = img.rows;
-    for (int i = 0; i < winList.size(); i++)
-    {
+    for (int i = 0; i < winList.size(); i++){
     dataList.push_back(PreProcessImg(img(cv::Rect(winList[i].x, winList[i].y, winList[i].w, winList[i].h)), dim));
     }
     SetInput(dataList, net);
@@ -395,7 +452,7 @@ std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe:
     {   
         // judge face or not 
         thres=-1.0;
-	std::cout<<"thresh="<<prob->data_at(i, 1, 0, 0)<<"\n";
+	    std::cout<<"thresh="<<prob->data_at(i, 1, 0, 0)<<"\n";
         if (prob->data_at(i, 1, 0, 0) > thres)
         {
             float sn = reg->data_at(i, 0, 0, 0);

@@ -4,7 +4,7 @@ int main()
 {
     PCN detector("model/PCN.caffemodel",
                  "model/PCN-1.prototxt", "model/PCN-2.prototxt", "model/PCN-3.prototxt");
-    detector.SetMinFaceSize(35);
+    detector.SetMinFaceSize(24)
     detector.SetScoreThresh(0.37, 0.43, 0.95);
     detector.SetImagePyramidScaleFactor(1.414);
     detector.SetVideoSmooth(false);
