@@ -59,12 +59,13 @@ int main(int argc, const char  *argv[])
     cv::Mat face_region=img(rects[0]);
     cv::Mat faceImg;
     for (int j = 0; j < faces.size(); j++){
-        cv::Mat tmpFaceImg = CropFace(face_region, faces[j], 200);
-        faceImg = MergeImgs(faceImg, tmpFaceImg);
+	Window face(faces[j].x+rects[0].x,faces[j].y+rects[0].y,faces[j].width,faces[j].angle,faces[j].score);
+        cv::Mat tmpFaceImg = CropFace(img, face, 200);
+        // faceImg = MergeImgs(faceImg, tmpFaceImg);
         std::string file_name="result_test/"+filename+"_faces.jpg";
         cv::imwrite(file_name,tmpFaceImg);
     }
-    std::string file_name="result_test/"+filename+".jpg";
+    std::string file_name="result_test/"+filename;
 	std::cout<<file_name<<"\n\n**********************************\n\n";
     cv::imwrite(file_name,img);
 
