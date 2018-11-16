@@ -43,6 +43,33 @@ int main(int argc, const char  *argv[])
         rect.y=atoi(argv[i+2]);
         rect.width=atoi(argv[i+3]);
         rect.height=atoi(argv[i+4]);
+       if(rect.width>rect.height)
+         rect.height=rect.width;
+       else
+         rect.width=rect.height;
+       const int scale=(int) (std::min(rect.width,rect.height) /6);
+       const int side_thresh=15;
+       if(rect.x<side_thresh && rect.y> side_thresh){
+          rect.y+=scale;
+	  rect.width=(rect.x+rect.width-scale<img_rect.img.cols)?(rect.width-scale):(img_rect.img.cols-rect.x);
+          rect.height=(rect.y+rect.height-scale<img_rect.img.rows)?(rect.height-scale):(img_rect.img.rows-rect.y);
+        }
+       else 
+	if(rect.x>side_thresh && rect.y< side_thresh){
+          rect.x+=scale;
+	    rect.width=(rect.x+rect.width-scale<img_rect.img.cols)?(rect.width-scale):(img_rect.img.cols-rect.x);
+          rect.height=(rect.y+rect.height-scale<img_rect.img.rows)?(rect.height-scale):(img_rect.img.rows-rect.y);
+        }
+       else
+       {
+       rect.x=rect.x+scale;
+       rect.y=rect.y+scale;
+       cv::Mat& img =img_rect.img;
+       rect.width=(rect.x+rect.width-scale<img.cols)?(rect.width-scale):(img.cols-rect.x);
+       rect.height=(rect.y+rect.height-scale<img.rows)?(rect.height-scale):(img.rows-rect.y);
+       }
+       std::cout<<rect.x<<","<<rect.y<<","<<rect.width<<","<<rect.height<<"\n";
+
         img_rect.rects.push_back(rect);
 //	std::cout<<"x="<< rect.x<<",y="<< rect.y<<",width="<< rect.width<<",height="<< rect.height<<"\n";
       }
@@ -50,7 +77,23 @@ int main(int argc, const char  *argv[])
   }
     cv::Mat& img =img_rect.img;
     std::vector<cv::Rect>& rects=img_rect.rects;
-	std::cout<<"img.rows="<<img.rows<<"\n";
+    const int size=rects.size();
+    for(int i=0;i<size;++i){
+       cv::Rect rect=rects[i];
+       if(rect.width>rect.height)
+         rect.height=rect.width;
+       else
+         rect.width=rect.height;
+/*
+    const int scale=(int) (rect.width / 8);
+    rect.x=(rect.x-scale>0)?(rect.x-scale):0;
+    rect.y=(rect.y-scale>0)?(rect.y-scale):0;
+    rect.width=(rect.x+rect.width+scale<img.cols)?(rect.width+2*scale):(img.cols-rect.x);
+    rect.height=(rect.y+rect.height+scale<img.rows)?(rect.height+2*scale):(img.rows-rect.y);
+    }
+*/
+   }
+    std::cout<<"img.rows="<<img.rows<<"\n";
     cv::TickMeter tm;
     tm.reset();
     tm.start();
@@ -59,13 +102,14 @@ int main(int argc, const char  *argv[])
     cv::Mat face_region=img(rects[0]);
     cv::Mat faceImg;
     for (int j = 0; j < faces.size(); j++){
-	Window face(faces[j].x+rects[0].x,faces[j].y+rects[0].y,faces[j].width,faces[j].angle,faces[j].score);
+	const int width=std::max(rects[0].width,rects[0].height);
+	Window face(faces[j].x+rects[0].x,faces[j].y+rects[0].y,width,faces[j].angle,faces[j].score);
         cv::Mat tmpFaceImg = CropFace(img, face, 200);
         // faceImg = MergeImgs(faceImg, tmpFaceImg);
-        std::string file_name="result_test/"+filename+"_faces.jpg";
+        std::string file_name="result_test_rescale/"+filename+"_"+std::to_string(face.angle)+"_faces.jpg";
         cv::imwrite(file_name,tmpFaceImg);
     }
-    std::string file_name="result_test/"+filename;
+    std::string file_name="result_test_rescale/"+filename;
 	std::cout<<file_name<<"\n\n**********************************\n\n";
     cv::imwrite(file_name,img);
 

@@ -110,9 +110,12 @@ std::vector<Window> PCN:: DetectFace(cv::Mat& origin_img,std::vector<cv::Rect>& 
         cv::flip(img90, imgNeg90, 0);
         // std::vector<Window2> winList = p->Stage1(img, imgPad, p->net_[0], p->classThreshold_[0]);
         // winList = p->NMS(winList, true, p->nmsThreshold_[0]);
-        std::cout<<"test...\n";
         std::vector<Window2> winList =p->Stage1_WinList(img, p->net_[0],p->classThreshold_[0],24);
         winList = p->NMS(winList, true, p->nmsThreshold_[0]);
+	const int win_size=winList.size();
+	for(int i=0;i<win_size;++i){
+	std::cout<<winList[i].x<<","<<winList[i].y<<","<<winList[i].w<<"\n";
+	}
         winList = p->Stage2(imgPad, img180, p->net_[1], p->classThreshold_[1], 24, winList);
         winList = p->NMS(winList, true, p->nmsThreshold_[1]);
 
@@ -514,7 +517,6 @@ std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe:
     // rx, ry, rw, rw, 0, curScale, prob->data_at(0, 1, i, j)
     Window2 wd(0,0,img.cols,img.rows,0,1.0,0.0); 
     winList.push_back(wd);
-    std::cout<<"--------stage1:winList.size()="<<winList.size()<<"\n";
     std::vector<cv::Mat> dataList;
     const int height = img.rows;
     for (int i = 0; i < winList.size(); i++){
@@ -530,7 +532,7 @@ std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe:
     {   
         // judge face or not 
         thres=-1.0;
-	    std::cout<<"thresh="<<prob->data_at(i, 1, 0, 0)<<"\n";
+	std::cout<<"thresh="<<prob->data_at(i, 1, 0, 0)<<"\n";
         if (prob->data_at(i, 1, 0, 0) > thres)
         {
             float sn = reg->data_at(i, 0, 0, 0);
@@ -544,9 +546,9 @@ std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe:
             int rx = int(cropX  - 0.5 * sn * cropW + cropW * sn * xn + 0.5 * cropW);
             int ry = int(cropY  - 0.5 * sn * cropW + cropW * sn * yn + 0.5 * cropW);//0
             if(rx<0)
-            rx=0;
+              rx=0;
             if(ry<0)
-                    ry=0;
+              ry=0;
             if(rx+rw >img.cols)
             rw=img.cols-rx-1;
             if(ry+rw >img.rows)
@@ -554,7 +556,7 @@ std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe:
 
 	    std::cout<<"rw="<<rw<<",rx="<<rx<<",ry="<<ry<<"\n";
  //           if (Legal(rx, ry, img) && Legal(rx + rw - 1, ry + rw - 1, img))
-            {
+            /*{
                 if (rotateProb->data_at(i,1, 0, 0) > 0.5){
                     std::cout<<"stage1:ratate 0 \n";
                     ret.push_back(Window2(rx, ry, rw, rw, 0, 1.0, prob->data_at(0,1,0,0)));
@@ -564,7 +566,29 @@ std::vector<Window2> Impl::Stage1_WinList(cv::Mat& img, caffe::shared_ptr<caffe:
                     ret.push_back(Window2(rx, ry, rw, rw, 180, 1.0, prob->data_at(0, 1, 0, 0)));
                     std::cout<<"stage1:ratate 180 \n";  
 		}
-            }
+            }*/
+	    float maxRotateScore = -1;
+            int maxRotateIndex = 0;
+            for(int j=0;j<2;++j)
+            {
+		std::cout<<"rotateProb->data_at(i,j, 0, 0)="<<rotateProb->data_at(i,j, 0, 0)<<"\n";
+                if (rotateProb->data_at(i,j, 0, 0) > maxRotateScore){
+                        maxRotateScore = rotateProb->data_at(i, j, 0, 0);
+                    maxRotateIndex = j;
+                }
+                   
+	    }
+	   std::cout<<"stage1:maxRotateScore="<<maxRotateScore<<"\n";
+            if(maxRotateScore>0.5){
+                   std::cout<<"stage1:ratate 0,cof="<<prob->data_at(0,1,0,0)<<" \n";
+                    ret.push_back(Window2(rx, ry, rw, rw, 0, 1.0, prob->data_at(0,1,0,0)));
+             }
+
+              else{
+                    ret.push_back(Window2(rx, ry, rw, rw, 180, 1.0, prob->data_at(0, 1, 0, 0)));
+                    std::cout<<"stage1:ratate 180,cof="<<prob->data_at(0,1,0,0)<<" \n";
+		 }
+		
 	}
     }
     return ret;
@@ -743,7 +767,6 @@ std::vector<Window2> Impl::Stage2(cv::Mat img, cv::Mat img180, caffe::shared_ptr
         return winList;
     std::vector<cv::Mat> dataList;
     int height = img.rows;
-     std::cout<<"height="<<height<<"\n";
     for (int i = 0; i < winList.size(); i++)
     {
         if (abs(winList[i].angle) < EPS)
